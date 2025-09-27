@@ -7,13 +7,13 @@ import {
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-/* ================= THEME (elegante) ================= */
+/* ================= THEME ================= */
 const THEME = {
-  primary: "#164E63",   // azul petróleo
-  sky: "#38BDF8",       // acento celeste
-  paperA: "#F6F8FC",    // porcelana
-  paperB: "#FFFFFF",    // blanco
-  text:   "#0A1220",    // texto
+  primary: "#164E63",
+  sky: "#38BDF8",
+  paperA: "#F6F8FC",
+  paperB: "#FFFFFF",
+  text: "#0A1220",
 };
 
 /* ================= DATA ================= */
@@ -36,131 +36,230 @@ const SocialIcon = ({ name, className = "w-4 h-4" }) => {
   }
 };
 
-/* ============== FONDO ANIMADO (capas con GSAP) ============== */
+/* ============== FONDO NUEVO: “Aurora + Bubbles” ============== */
 function BackgroundFX() {
   const gridRef = useRef(null);
-  const radialRef = useRef(null);
-  const blobARef = useRef(null);
-  const blobBRef = useRef(null);
+  const auroraRef = useRef(null);
+  const bubblesRef = useRef([]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     gsap.registerPlugin(ScrollTrigger);
+    const mm = gsap.matchMedia();
 
-    // Deriva lenta e infinita del patrón (diagonal)
-    gsap.to(gridRef.current, {
-      backgroundPosition: "-240px -240px",
-      duration: 70,
-      repeat: -1,
-      ease: "linear"
-    });
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // Parallax vertical del radial al hacer scroll
-    gsap.to(radialRef.current, {
-      y: -90,
-      ease: "none",
-      scrollTrigger: {
-        trigger: document.body,
-        start: "top top",
-        end: "bottom bottom",
-        scrub: 0.6
+    const makeBubbles = (container, qty) => {
+      bubblesRef.current = [];
+      container.innerHTML = "";
+      for (let i = 0; i < qty; i++) {
+        const b = document.createElement("span");
+        b.className =
+          "absolute rounded-full bg-sky-200/40 dark:bg-sky-300/30";
+        const size = 6 + Math.random() * 18; // px
+        b.style.width = `${size}px`;
+        b.style.height = `${size}px`;
+        b.style.left = `${Math.random() * 100}%`;
+        b.style.top = `${20 + Math.random() * 60}%`;
+        b.style.filter = "blur(0.3px)";
+        container.appendChild(b);
+        bubblesRef.current.push(b);
+      }
+    };
+
+    const ctx = gsap.context(() => {
+      // Dotted grid parallax muy suave
+      if (gridRef.current && !prefersReduced) {
+        gsap.to(gridRef.current, {
+          backgroundPosition: "-120px -120px",
+          duration: 80,
+          repeat: -1,
+          ease: "linear",
+        });
+      }
+
+      // Aurora: 3 blobs grandes con blur que se mueven horizontalmente
+      if (auroraRef.current && !prefersReduced) {
+        const [a, b, c] = auroraRef.current.children;
+        gsap.to(a, { xPercent: 20, yPercent: -5, duration: 18, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        gsap.to(b, { xPercent: -18, yPercent: 4, duration: 22, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        gsap.to(c, { xPercent: 12, yPercent: 8, duration: 26, yoyo: true, repeat: -1, ease: "sine.inOut" });
+        // Parallax con scroll, leve
+        gsap.to(auroraRef.current, {
+          y: -30,
+          scrollTrigger: { trigger: document.body, start: "top top", end: "bottom bottom", scrub: 0.4 },
+        });
+      }
+
+      // Bubbles (menos en móvil)
+      const bubbleLayer = document.getElementById("bubble-layer");
+      if (bubbleLayer && !prefersReduced) {
+        makeBubbles(bubbleLayer, window.innerWidth < 640 ? 8 : 16);
+        bubblesRef.current.forEach((el, i) => {
+          gsap.to(el, {
+            y: -40 - Math.random() * 60,
+            x: "+=" + (Math.random() * 40 - 20),
+            opacity: 0.15 + Math.random() * 0.25,
+            duration: 8 + Math.random() * 6,
+            repeat: -1,
+            yoyo: true,
+            ease: "sine.inOut",
+            delay: i * 0.15,
+          });
+        });
       }
     });
 
-    // Blobs flotantes suaves
-    const float = (el, y = 24, x = 18, d = 9) =>
-      gsap.to(el, { y, x, duration: d, yoyo: true, repeat: -1, ease: "sine.inOut" });
-    float(blobARef.current, 28, -16, 10);
-    float(blobBRef.current, -22, 14, 11);
+    mm.add("(max-width: 639px)", () => {
+      // en móvil, aurora menos intensa
+      if (auroraRef.current) auroraRef.current.style.opacity = "0.6";
+    });
+
+    return () => {
+      mm.revert();
+      ctx.revert();
+    };
   }, []);
 
   return (
     <>
-      {/* Gradiente porcelana base */}
-      <div
-        className="fixed inset-0 -z-40"
-        style={{ background: `linear-gradient(180deg, ${THEME.paperA} 0%, ${THEME.paperB} 100%)` }}
-      />
+      {/* base gradient */}
+      <div className="fixed inset-0 -z-50" style={{ background: `linear-gradient(180deg, ${THEME.paperA} 0%, ${THEME.paperB} 100%)` }} />
 
-      {/* Radial celeste con parallax */}
-      <div
-        ref={radialRef}
-        className="fixed top-0 inset-x-0 h-[520px] -z-30 pointer-events-none"
-        style={{ background: "radial-gradient(900px 300px at 18% 0%, rgba(56,189,248,.18), transparent 60%)" }}
-      />
-
-      {/* Patrón punteado que deriva */}
+      {/* dotted grid */}
       <div
         ref={gridRef}
-        className="fixed inset-0 -z-20 opacity-[0.05] pointer-events-none"
+        className="fixed inset-0 -z-40 pointer-events-none"
         style={{
+          opacity: 0.08,
           backgroundImage: "radial-gradient(currentColor 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-          color: THEME.sky
+          backgroundSize: "20px 20px",
+          color: THEME.sky,
+          maskImage: "linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%)",
+          WebkitMaskImage: "linear-gradient(180deg, transparent 0%, #000 12%, #000 88%, transparent 100%)",
         }}
       />
 
-      {/* Blobs sutiles */}
-      <svg ref={blobARef} className="fixed -z-10 -top-24 -right-20 w-[420px] h-[420px] opacity-20 pointer-events-none" viewBox="0 0 200 200">
-        <path
-          fill="#93C5FD"
-          d="M40,-58C53,-49,64,-37,70,-23C76,-9,77,7,70,21C63,35,49,47,34,56C19,64,3,69,-12,70C-27,71,-51,68,-64,55C-77,42,-79,21,-79,1C-78,-19,-75,-38,-64,-51C-53,-64,-35,-71,-18,-77C-1,-83,16,-87,31,-81C46,-75,59,-58,40,-58Z"
-          transform="translate(100 100)"
-        />
-      </svg>
+      {/* aurora blobs */}
+      <div ref={auroraRef} className="fixed -z-30 inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-24 -left-16 w-[36rem] h-[36rem] rounded-full blur-3xl"
+             style={{ background: "radial-gradient(closest-side, rgba(56,189,248,0.35), transparent 60%)" }} />
+        <div className="absolute top-10 right-[-10%] w-[40rem] h-[40rem] rounded-full blur-3xl"
+             style={{ background: "radial-gradient(closest-side, rgba(22,78,99,0.28), transparent 62%)" }} />
+        <div className="absolute bottom-[-15%] left-[20%] w-[30rem] h-[30rem] rounded-full blur-3xl"
+             style={{ background: "radial-gradient(closest-side, rgba(2,132,199,0.22), transparent 65%)" }} />
+      </div>
 
-      <svg ref={blobBRef} className="fixed -z-10 -bottom-28 -left-28 w-[360px] h-[360px] opacity-15 pointer-events-none" viewBox="0 0 200 200">
-        <path
-          fill="#BAE6FD"
-          d="M49,-62.5C62.3,-52.9,71.8,-37.6,74,-22.1C76.2,-6.6,71.1,9.2,63.4,22.5C55.8,35.8,45.6,46.7,33.2,56.3C20.8,65.9,10.4,74.2,-2.5,78.1C-15.5,82,-31,81.6,-44.1,74.9C-57.2,68.1,-67.9,55.1,-72.2,40.2C-76.4,25.3,-74.1,8.4,-69.5,-6.1C-64.9,-20.6,-58.1,-32.8,-48.6,-43.7C-39.1,-54.6,-27,-64.3,-13.1,-69.4C0.8,-74.6,16.5,-75.2,30.3,-69.4C44,-63.6,55.7,-51.2,49,-62.5Z"
-          transform="translate(100 100)"
-        />
-      </svg>
+      {/* bubbles */}
+      <div id="bubble-layer" className="fixed inset-0 -z-20 pointer-events-none" />
     </>
   );
+}
+
+/* ======== Hook: botones “magnéticos” ======== */
+function useMagnetic(ref, strength = 18) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const enter = () => gsap.to(el, { scale: 1.02, duration: 0.15 });
+    const leave = () => gsap.to(el, { x: 0, y: 0, scale: 1, duration: 0.2 });
+    const move = (e) => {
+      const r = el.getBoundingClientRect();
+      const relX = e.clientX - (r.left + r.width / 2);
+      const relY = e.clientY - (r.top + r.height / 2);
+      gsap.to(el, { x: (relX / r.width) * strength, y: (relY / r.height) * strength, duration: 0.2 });
+    };
+
+    el.addEventListener("mouseenter", enter);
+    el.addEventListener("mouseleave", leave);
+    el.addEventListener("mousemove", move);
+    return () => {
+      el.removeEventListener("mouseenter", enter);
+      el.removeEventListener("mouseleave", leave);
+      el.removeEventListener("mousemove", move);
+    };
+  }, [ref, strength]);
 }
 
 /* ================= MAIN ================= */
 export default function ChaoContribucionesPage() {
   const [activeTab, setActiveTab] = useState("fin");
   const [modal, setModal] = useState({ open: false, src: "", poster: "", title: "" });
+
   const progressRef = useRef(null);
   const heroRef = useRef(null);
   const revealRef = useRef([]);
-  revealRef.current = [];
+
+  const titleUnderlineRef = useRef(null);
+  const videoCardRef = useRef(null);
+  const btnVideosRef = useRef(null);
+  const btnFaqRef = useRef(null);
+
+  useMagnetic(btnVideosRef, 16);
+  useMagnetic(btnFaqRef, 12);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     gsap.registerPlugin(ScrollTrigger);
 
-    const updateBar = () => {
-      const scrolled = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
-      if (progressRef.current) progressRef.current.style.width = scrolled + "%";
-    };
-    updateBar();
-    window.addEventListener("scroll", updateBar);
+    const ctx = gsap.context(() => {
+      const updateBar = () => {
+        const scrolled = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
+        if (progressRef.current) progressRef.current.style.width = scrolled + "%";
+      };
+      updateBar();
+      window.addEventListener("scroll", updateBar);
 
-    if (heroRef.current) {
-      const items = heroRef.current.querySelectorAll(".hero-animate");
-      gsap.fromTo(items, { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 1, stagger: 0.12, ease: "power3.out" });
-    }
+      if (heroRef.current) {
+        const items = heroRef.current.querySelectorAll(".hero-animate");
+        gsap.fromTo(items, { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 1, stagger: 0.12, ease: "power3.out" });
+      }
 
-    revealRef.current.forEach((el) => {
-      gsap.fromTo(
-        el,
-        { y: 28, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.8, ease: "power2.out", scrollTrigger: { trigger: el, start: "top 85%" } }
-      );
+      revealRef.current.forEach((el) => {
+        if (!el) return;
+        gsap.fromTo(
+          el,
+          { y: 28, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.8, ease: "power2.out", scrollTrigger: { trigger: el, start: "top 85%" } }
+        );
+      });
+
+      if (titleUnderlineRef.current) {
+        gsap.fromTo(
+          titleUnderlineRef.current,
+          { scaleX: 0, transformOrigin: "0% 50%" },
+          { scaleX: 1, duration: 1.1, ease: "power3.out", delay: 0.2 }
+        );
+      }
+
+      if (videoCardRef.current) {
+        const shine = videoCardRef.current.querySelector(".shine");
+        if (shine) {
+          gsap.fromTo(shine, { xPercent: -130 }, { xPercent: 180, duration: 2.4, repeat: -1, ease: "power2.inOut", repeatDelay: 1.6 });
+        }
+        gsap.to(videoCardRef.current, {
+          y: -8,
+          scrollTrigger: { trigger: videoCardRef.current, start: "top bottom", end: "bottom top", scrub: 0.35 },
+        });
+      }
+
+      return () => window.removeEventListener("scroll", updateBar);
     });
 
-    return () => window.removeEventListener("scroll", updateBar);
+    return () => ctx.revert();
   }, []);
 
-  const addReveal = (el) => el && revealRef.current.push(el);
+  const addReveal = (el) => {
+    if (!el) return;
+    if (!revealRef.current.includes(el)) revealRef.current.push(el);
+  };
+
   const openVideo = (v) => setModal({ open: true, src: v.src, poster: v.poster, title: v.title });
   const closeVideo = () => setModal({ open: false, src: "", poster: "", title: "" });
 
   return (
     <main className="min-h-screen relative" style={{ color: THEME.text }}>
-      {/* Fondo animado */}
       <BackgroundFX />
 
       {/* Progress */}
@@ -168,8 +267,8 @@ export default function ChaoContribucionesPage() {
 
       {/* NAV */}
       <nav className="sticky top-0 z-50 backdrop-blur bg-white/80 border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <a href="#top" className="flex items-center gap-2 font-extrabold tracking-tight text-xl" style={{ color: THEME.primary }}>
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between">
+          <a href="#top" className="flex items-center gap-2 font-extrabold tracking-tight text-lg sm:text-xl" style={{ color: THEME.primary }}>
             <span>Chao</span>
             <span className="text-[#38BDF8]">Contribuciones</span>
           </a>
@@ -179,42 +278,72 @@ export default function ChaoContribucionesPage() {
             <a href="#videos" className="hover:opacity-80">Videos</a>
             <a href="#faq" className="hover:opacity-80">Preguntas</a>
           </div>
-          <a href="#sumate" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm hover:shadow-lg transition-shadow" style={{ backgroundColor: THEME.primary }}>
+          <a href="#sumate" className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-white text-xs sm:text-sm hover:shadow-lg transition-shadow" style={{ backgroundColor: THEME.primary }}>
             Súmate ahora <ArrowRight className="w-4 h-4" />
           </a>
         </div>
       </nav>
 
+      {/* HERO */}
       <header ref={heroRef} id="top" className="relative overflow-hidden">
-  <div className="max-w-6xl mx-auto px-4 py-12 md:py-20 relative grid md:grid-cols-2 gap-10 items-center">
-    <div>
-      <span
-        className="hero-animate inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full"
-        style={{ background: THEME.sky + "22", color: THEME.primary }}
-      >
-        <Sparkles className="w-4 h-4" /> Movimiento ciudadano
-      </span>
-      <h1 className="hero-animate text-4xl md:text-6xl font-black leading-tight mt-4" style={{ color: THEME.primary }}>
-        Eliminemos el <span className="text-[#38BDF8]">100% de las contribuciones</span>
-      </h1>
-      <p className="hero-animate mt-4 md:mt-6 text-lg md:text-xl text-gray-700 max-w-2xl">
-        Terminar el cobro permanente sobre la vivienda familiar y financiar con <strong>transparencia</strong> y <strong>eficiencia</strong>.
-      </p>
-      <div className="hero-animate mt-6 flex flex-wrap items-center gap-3">
-        <a href="#videos" className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl font-semibold shadow hover:shadow-lg" style={{ backgroundColor: THEME.primary, color: "white" }}>
-          Ver videos <PlayCircle className="w-5 h-5" />
-        </a>
-        <a href="#faq" className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl border border-gray-300 text-gray-800 hover:bg-white">¿Cómo se financia?</a>
-      </div>
-    </div>
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-8 sm:py-12 md:py-20 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-center">
+          {/* Columna texto */}
+          <div>
+            <span
+              className="hero-animate inline-flex items-center gap-2 text-[11px] sm:text-xs font-semibold px-3 py-1 rounded-full"
+              style={{ background: THEME.sky + "22", color: THEME.primary }}
+            >
+              <Sparkles className="w-4 h-4" /> Movimiento ciudadano
+            </span>
 
-   {/* HERO: video vertical atencion-moneda.mp4 con tamaños controlados */}
-<div className="relative flex md:justify-center">
-  <div className="rounded-3xl overflow-hidden border border-gray-200 shadow-xl bg-white/70 backdrop-blur">
-    {/* Mantiene 9:16 y limita el ancho por breakpoint */}
-    <div className="relative aspect-[9/16] w-[260px] sm:w-[300px] md:w-[320px] lg:w-[360px] xl:w-[380px]">
+            <h1 className="hero-animate text-4xl sm:text-5xl md:text-6xl font-black leading-tight mt-3" style={{ color: THEME.primary }}>
+              Eliminemos el <span className="text-[#38BDF8]">100% de las contribuciones</span>
+              <span ref={titleUnderlineRef} className="block mt-3 h-[4px] w-40 sm:w-48 rounded-full" style={{ background: THEME.sky }} />
+            </h1>
+
+            <p className="hero-animate mt-4 sm:mt-5 text-base sm:text-lg md:text-xl text-gray-700 max-w-2xl">
+              Terminar el cobro permanente sobre la vivienda familiar y financiar con <strong>transparencia</strong> y <strong>eficiencia</strong>.
+            </p>
+
+            <KPIStrip />
+            <Marquee />
+
+            <div className="hero-animate mt-5 sm:mt-6 flex flex-wrap items-center gap-3">
+              <a
+                ref={btnVideosRef}
+                href="#videos"
+                className="inline-flex items-center gap-2 px-4 sm:px-5 py-3 rounded-2xl font-semibold shadow hover:shadow-lg will-change-transform w-full sm:w-auto justify-center"
+                style={{ backgroundColor: THEME.primary, color: "white" }}
+              >
+                Ver videos <PlayCircle className="w-5 h-5" />
+              </a>
+              <a
+                ref={btnFaqRef}
+                href="#faq"
+                className="inline-flex items-center gap-2 px-4 sm:px-5 py-3 rounded-2xl border border-gray-300 text-gray-800 bg-white/70 backdrop-blur hover:bg-white will-change-transform w-full sm:w-auto justify-center"
+              >
+                ¿Cómo se financia?
+              </a>
+            </div>
+          </div>
+
+          {/* Columna video (pasa abajo en móvil) */}
+          {/* Columna video (pasa abajo en móvil) */}
+<div className="relative md:justify-self-end">
+  <div
+    ref={videoCardRef}
+    className="relative mx-auto w-[88vw] max-w-[420px] rounded-3xl overflow-hidden
+               border border-gray-200 shadow-xl bg-white/80 backdrop-blur"
+  >
+    <span
+      className="shine pointer-events-none absolute inset-y-0 -left-1 w-1/3 skew-x-[-20deg] opacity-20"
+      style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.9), transparent)" }}
+      aria-hidden
+    />
+    {/* ⬇️ El wrapper ahora es 100% ancho y controla el alto con aspect-ratio */}
+    <div className="relative w-full aspect-[9/16]">
       <video
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute inset-0 w-full h-full object-cover"
         controls
         playsInline
         preload="metadata"
@@ -228,14 +357,12 @@ export default function ChaoContribucionesPage() {
 
 
 
-
-  </div>
-</header>
-
+        </div>
+      </header>
 
       {/* MANIFIESTO */}
-      <section id="manifiesto" className="max-w-6xl mx-auto px-4 py-12 md:py-16 border-t border-slate-200/60">
-        <div className="grid md:grid-cols-3 gap-6">
+      <section id="manifiesto" className="max-w-6xl mx-auto px-3 sm:px-4 py-10 sm:py-12 md:py-16 border-t border-slate-200/60">
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
           <Pillar icon={<ShieldCheck className="w-6 h-6" />} title="Protección del patrimonio" text="Prioridad a adultos mayores, primera vivienda y familias vulnerables." />
           <Pillar icon={<Landmark className="w-6 h-6" />} title="Transparencia y eficiencia" text="Municipios con reglas claras, portales abiertos y gasto auditable." />
           <Pillar icon={<CheckCircle2 className="w-6 h-6" />} title="Derogación total" text="Fin al cobro permanente: lo que pagaste por tu casa no se paga dos veces." />
@@ -243,10 +370,10 @@ export default function ChaoContribucionesPage() {
       </section>
 
       {/* PASOS + Tabs */}
-      <section id="pasos" className="max-w-6xl mx-auto px-4 py-12 md:py-16 border-t border-slate-200/60">
-        <div className="rounded-3xl bg-white border border-gray-200 p-6 md:p-10">
+      <section id="pasos" className="max-w-6xl mx-auto px-3 sm:px-4 py-10 sm:py-12 md:py-16 border-t border-slate-200/60">
+        <div className="rounded-3xl bg-white border border-gray-200 p-5 sm:p-6 md:p-10">
           <h2 className="text-2xl md:text-3xl font-extrabold" style={{ color: THEME.primary }}>¿Cómo se implementa?</h2>
-          <div className="mt-6 grid md:grid-cols-3 gap-6">
+          <div className="mt-5 grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
             {[
               { n: "1", t: "Proyecto de ley", d: "Derogar el Impuesto Territorial y proteger la vivienda familiar." },
               { n: "2", t: "Reasignación y control", d: "Eficiencia del gasto, indicadores y control ciudadano del presupuesto municipal." },
@@ -256,7 +383,7 @@ export default function ChaoContribucionesPage() {
             ))}
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6 md:mt-8">
             <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
           </div>
         </div>
@@ -266,21 +393,7 @@ export default function ChaoContribucionesPage() {
       <section id="videos" className="relative overflow-hidden">
         <div aria-hidden className="absolute inset-0 -z-10"
              style={{ background: `linear-gradient(180deg, ${THEME.paperB} 0%, ${THEME.paperA} 100%)` }} />
-        <div aria-hidden className="absolute inset-0 -z-[9] opacity-[0.05]"
-             style={{
-               backgroundImage:
-                 "linear-gradient(transparent 95%, currentColor 95%), linear-gradient(90deg, transparent 95%, currentColor 95%)",
-               backgroundSize: "28px 28px, 28px 28px",
-               color: "#91A4B6"
-             }} />
-        <div aria-hidden
-             className="absolute -z-[8] -top-52 right-[-20%] w-[55%] h-[110%] rounded-[48px] rotate-3"
-             style={{
-               background: "linear-gradient(180deg, rgba(56,189,248,0.08) 0%, rgba(22,78,99,0.06) 100%)",
-               boxShadow: "0 30px 80px rgba(22,78,99,0.10)"
-             }} />
-
-        <div className="max-w-6xl mx-auto px-4 py-14 md:py-16 relative">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-12 md:py-16 relative">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h2 className="text-2xl md:text-3xl font-extrabold" style={{ color: THEME.primary }}>
               Mira y comparte
@@ -290,7 +403,7 @@ export default function ChaoContribucionesPage() {
             </span>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-7 justify-items-center">
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-7 justify-items-center">
             {VIDEOS.map((v) => (
               <SocialPostCard key={v.id} v={v} />
             ))}
@@ -299,7 +412,7 @@ export default function ChaoContribucionesPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="max-w-6xl mx-auto px-4 py-14 md:py-16">
+      <section id="faq" className="max-w-6xl mx-auto px-3 sm:px-4 py-12 md:py-16">
         <h2 className="text-2xl md:text-3xl font-extrabold" style={{ color: THEME.primary }}>Preguntas frecuentes</h2>
         <div className="mt-6 divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
           {[
@@ -320,15 +433,16 @@ export default function ChaoContribucionesPage() {
 
       {/* CTA */}
       <section id="sumate" className="relative">
-        <div className="max-w-6xl mx-auto px-4 pb-16">
-          <div className="rounded-3xl p-8 md:p-12 text-white shadow-lg overflow-hidden"
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 pb-14 md:pb-16">
+          <div className="rounded-3xl p-6 md:p-12 text-white shadow-lg overflow-hidden"
                style={{ background: `linear-gradient(90deg, ${THEME.primary}, ${THEME.sky})` }}>
             <h3 className="text-2xl md:text-3xl font-extrabold">Súmate a Chao Contribuciones</h3>
             <p className="mt-2 text-white/90 max-w-2xl">Deja tu correo para recibir novedades y participar en actividades del movimiento.</p>
             <form onSubmit={(e) => e.preventDefault()} className="mt-6 flex flex-col sm:flex-row gap-3">
-              <input type="email" required placeholder="Tu correo" className="w-full sm:w-auto flex-1 px-4 py-3 rounded-2xl text-gray-900" />
+              <label className="sr-only" htmlFor="email">Correo</label>
+              <input id="email" type="email" required placeholder="Tu correo" className="w-full sm:w-auto flex-1 px-4 py-3 rounded-2xl text-gray-900" />
               <button className="px-5 py-3 rounded-2xl font-semibold bg-white text-[#111827]">Quiero sumarme</button>
-              <a href="#videos" className="px-5 py-3 rounded-2xl font-semibold border border-white/60 text-white">Ver videos</a>
+              <a href="#videos" className="px-5 py-3 rounded-2xl font-semibold border border-white/60 text-white text-center">Ver videos</a>
             </form>
           </div>
         </div>
@@ -336,27 +450,53 @@ export default function ChaoContribucionesPage() {
 
       {/* FOOTER */}
       <footer className="border-t border-gray-200 bg-white/80 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-10 text-sm text-gray-600">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-8 sm:py-10 text-sm text-gray-600">
+          <div className="grid gap-6 md:grid-cols-2 md:items-center">
             <div>
               <p className="font-bold text-gray-800">Referencia:</p>
-              <p>Movimiento Chao Contribuciones. Apoya al candidato a diputado <span className="font-semibold" style={{ color: THEME.primary }}>Cristian Daly</span>.</p>
-              <a href="https://cristiandaly.cl/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 font-semibold hover:underline mt-1" style={{ color: THEME.primary }}>
+              <p>
+                Movimiento Chao Contribuciones. Apoya al candidato a diputado{" "}
+                <span className="font-semibold" style={{ color: THEME.primary }}>Cristian Daly</span>.
+              </p>
+              <a
+                href="https://cristiandaly.cl/"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 font-semibold hover:underline mt-1"
+                style={{ color: THEME.primary }}
+              >
                 Página oficial <ExternalLink className="w-4 h-4" />
               </a>
             </div>
-            <div className="flex items-center gap-4">
-              <a href="https://instagram.com/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-white"><Instagram className="w-4 h-4" /> Instagram</a>
-              <a href="https://youtube.com/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-white"><Youtube className="w-4 h-4" /> YouTube</a>
-              <a href="https://facebook.com/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-white"><Facebook className="w-4 h-4" /> Facebook</a>
-              <a href="https://twitter.com/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-white"><X className="w-4 h-4" /> X</a>
+
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              <a href="https://instagram.com/" target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-white flex-1 sm:flex-none justify-center">
+                <Instagram className="w-4 h-4" /> Instagram
+              </a>
+              <a href="https://youtube.com/" target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-white flex-1 sm:flex-none justify-center">
+                <Youtube className="w-4 h-4" /> YouTube
+              </a>
+              <a href="https://facebook.com/" target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-white flex-1 sm:flex-none justify-center">
+                <Facebook className="w-4 h-4" /> Facebook
+              </a>
+              <a href="https://twitter.com/" target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-white flex-1 sm:flex-none justify-center">
+                <X className="w-4 h-4" /> X
+              </a>
             </div>
           </div>
-          <p className="mt-6 text-xs text-gray-500">© {new Date().getFullYear()} Chao Contribuciones. Todos los derechos reservados.</p>
+
+          <p className="mt-6 text-xs text-gray-500">
+            © {new Date().getFullYear()} Chao Contribuciones. Todos los derechos reservados.
+          </p>
         </div>
       </footer>
 
-      {/* MODAL (solo hero) */}
+
+      {/* MODAL */}
       {modal.open && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm grid place-items-center p-4" onClick={closeVideo}>
           <div className="w-full max-w-3xl aspect-video bg-black rounded-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -374,7 +514,7 @@ export default function ChaoContribucionesPage() {
 /* ================= Subcomponentes ================= */
 function Pillar({ icon, title, text }) {
   return (
-    <div className="rounded-2xl p-6 bg-white border border-gray-200 shadow-sm hover:shadow-md transition">
+    <div className="rounded-2xl p-6 bg-white border border-gray-200 shadow-sm transition hover:shadow-md hover:border-sky-300/60">
       <div className="flex items-center gap-3" style={{ color: THEME.primary }}>
         {icon}<h3 className="text-lg font-bold">{title}</h3>
       </div>
@@ -385,7 +525,7 @@ function Pillar({ icon, title, text }) {
 
 function Step({ n, t, d, addReveal }) {
   return (
-    <div ref={addReveal} className="p-5 rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff,#f9fafb)]">
+    <div ref={addReveal} className="p-5 rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff,#f9fafb)] transition-transform hover:-translate-y-0.5">
       <div className="text-sm font-semibold" style={{ color: THEME.sky }}>Paso {n}</div>
       <div className="mt-1 text-lg font-bold" style={{ color: THEME.primary }}>{t}</div>
       <p className="mt-2 text-gray-700 text-sm">{d}</p>
@@ -419,19 +559,16 @@ function Tabs({ activeTab, setActiveTab }) {
   );
 }
 
-/* Tarjetas de video claras, “glass” */
 function SocialPostCard({ v }) {
   const [isPortrait, setIsPortrait] = useState(true);
   return (
     <article
       className="w-[320px] md:w-[340px] xl:w-[360px] rounded-3xl border border-slate-200/70 bg-white/90 backdrop-blur
                  shadow-[0_6px_24px_rgba(2,6,23,.06)] hover:shadow-[0_12px_40px_rgba(2,6,23,.12)]
-                 transition-shadow duration-300 overflow-hidden"
+                 transition-shadow duration-300 overflow-hidden hover:-translate-y-1"
     >
       <div className="p-3">
-        <div
-          className={`relative rounded-2xl overflow-hidden border border-slate-200/70 ${isPortrait ? "aspect-[9/16]" : "aspect-video"}`}
-        >
+        <div className={`relative rounded-2xl overflow-hidden border border-slate-200/70 ${isPortrait ? "aspect-[9/16]" : "aspect-video"}`}>
           <video
             className={`absolute inset-0 w-full h-full ${isPortrait ? "object-cover" : "object-contain bg-black"}`}
             controls
@@ -452,7 +589,7 @@ function SocialPostCard({ v }) {
         <h3 className="font-semibold text-slate-900">{v.title}</h3>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {v.tags?.map((t, i) => (
-            <span key={i} className="px-3 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+            <span key={`${v.id}-${i}`} className="px-3 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
               {t}
             </span>
           ))}
@@ -468,5 +605,89 @@ function SocialPostCard({ v }) {
         </div>
       </div>
     </article>
+  );
+}
+
+/* ===== KPIs ===== */
+function KPIStrip() {
+  const items = [
+    { value: 120000, label: "firmas meta" },
+    { value: 345,    label: "comunas sumadas" },
+    { value: 1,      label: "ley: vivienda familiar" },
+  ];
+  const refs = useRef([]);
+
+  useEffect(() => {
+    const tweens = [];
+    refs.current.forEach((el, i) => {
+      if (!el) return;
+      const obj = { n: 0 };
+      const t = gsap.to(obj, {
+        n: items[i].value,
+        duration: 1.4,
+        ease: "power3.out",
+        delay: i * 0.1,
+        onUpdate() {
+          el.textContent = Math.floor(obj.n).toLocaleString("es-CL");
+        },
+      });
+      tweens.push(t);
+    });
+    return () => tweens.forEach((t) => t.kill());
+  }, []);
+
+  return (
+    <ul id="kpi-strip" className="hero-animate mt-5 grid grid-cols-2 md:grid-cols-3 max-w-xl gap-3">
+      {items.map((it, i) => (
+        <li key={i} className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur px-4 py-3 shadow-sm">
+          <div className="text-xl sm:text-2xl font-black" style={{ color: THEME.primary }}>
+            <span ref={(el) => (refs.current[i] = el)}>0</span>{it.value >= 100 ? "" : "x"}
+          </div>
+          <div className="text-[11px] sm:text-[12px] font-semibold text-slate-600">{it.label}</div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* ===== Marquee ===== */
+function Marquee() {
+  const track = useRef(null);
+  useEffect(() => {
+    if (!track.current) return;
+    // velocidad diferente para móvil
+    const dur = window.innerWidth < 640 ? 26 : 18;
+    const tween = gsap.to(track.current, { xPercent: -50, repeat: -1, duration: dur, ease: "linear" });
+    const el = track.current;
+    const stop = () => tween.pause();
+    const play = () => tween.resume();
+    el.addEventListener("mouseenter", stop);
+    el.addEventListener("mouseleave", play);
+    el.addEventListener("touchstart", stop, { passive: true });
+    el.addEventListener("touchend", play);
+    return () => {
+      tween.kill();
+      el.removeEventListener("mouseenter", stop);
+      el.removeEventListener("mouseleave", play);
+      el.removeEventListener("touchstart", stop);
+      el.removeEventListener("touchend", play);
+    };
+  }, []);
+  const tags = ["#ChaoContribuciones", "Transparencia", "Eficiencia", "Vivienda Familiar", "Adultos Mayores"];
+  return (
+    <div className="relative mt-6 sm:mt-8 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 [mask-image:linear-gradient(90deg,transparent,black,transparent)]" />
+      <div ref={track} className="flex gap-3 sm:gap-4 will-change-transform">
+        {[...tags, ...tags].map((t, i) => (
+          <span
+            key={i}
+            className="px-3 py-1 rounded-full border text-[11px] sm:text-xs font-semibold"
+            style={{ borderColor: "#bae6fd", color: THEME.primary, background: "#f8fdff" }}
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
